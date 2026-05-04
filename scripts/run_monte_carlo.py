@@ -33,8 +33,13 @@ def parse_args():
     parser.add_argument("--rf-trees", default=300, type=int)
     parser.add_argument("--rf-tune-trees", default=None, type=int)
     parser.add_argument("--nn-epochs", default=100, type=int)
+    parser.add_argument("--nn-patience", default=5, type=int)
     parser.add_argument("--nn-ensemble-size", default=10, type=int)
     parser.add_argument("--nn-tune-ensemble-size", default=None, type=int)
+    parser.add_argument("--nn-l1-min", default=1e-5, type=float)
+    parser.add_argument("--nn-l1-max", default=1e-3, type=float)
+    parser.add_argument("--nn-l1-num", default=5, type=int)
+    parser.add_argument("--nn-l1-values", nargs="+", default=None, type=float)
     parser.add_argument("--nn-batch-size", default=10_000, type=int)
     parser.add_argument("--nn-device", default=None, choices=["cpu", "mps", "cuda"])
     parser.add_argument("--quick", action="store_true", help="Use a small grid for a fast smoke test.")
@@ -50,6 +55,16 @@ def main():
         np.log10(args.enet_alpha_max),
         args.enet_alpha_num,
     ))
+    if args.nn_l1_values is not None:
+        nn_l1_penalties = tuple(args.nn_l1_values)
+    elif args.nn_l1_min == 0.0 and args.nn_l1_max == 0.0:
+        nn_l1_penalties = (0.0,)
+    else:
+        nn_l1_penalties = tuple(np.logspace(
+            np.log10(args.nn_l1_min),
+            np.log10(args.nn_l1_max),
+            args.nn_l1_num,
+        ))
 
     if args.quick:
         experiment = ExperimentConfig(
@@ -67,9 +82,9 @@ def main():
             rf_n_estimators=min(args.rf_trees, 50),
             rf_tune_n_estimators=args.rf_tune_trees,
             nn_learning_rates=(0.001,),
-            nn_l1_penalties=(1e-5,),
+            nn_l1_penalties=nn_l1_penalties,
             nn_epochs=min(args.nn_epochs, 25),
-            nn_patience=3,
+            nn_patience=min(args.nn_patience, 3),
             nn_ensemble_size=min(args.nn_ensemble_size, 2),
             nn_tune_ensemble_size=args.nn_tune_ensemble_size,
             nn_batch_size=args.nn_batch_size,
@@ -88,7 +103,9 @@ def main():
             enet_alphas=enet_alphas,
             rf_n_estimators=args.rf_trees,
             rf_tune_n_estimators=args.rf_tune_trees,
+            nn_l1_penalties=nn_l1_penalties,
             nn_epochs=args.nn_epochs,
+            nn_patience=args.nn_patience,
             nn_ensemble_size=args.nn_ensemble_size,
             nn_tune_ensemble_size=args.nn_tune_ensemble_size,
             nn_batch_size=args.nn_batch_size,
