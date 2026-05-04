@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--rf-trees", default=300, type=int)
     parser.add_argument("--nn-epochs", default=100, type=int)
     parser.add_argument("--nn-ensemble-size", default=10, type=int)
+    parser.add_argument("--nn-tune-ensemble-size", default=None, type=int)
     parser.add_argument("--nn-batch-size", default=10_000, type=int)
     parser.add_argument("--nn-device", default=None, choices=["cpu", "mps", "cuda"])
     parser.add_argument("--quick", action="store_true", help="Use a small grid for a fast smoke test.")
@@ -52,6 +53,7 @@ def main():
             nn_epochs=min(args.nn_epochs, 25),
             nn_patience=3,
             nn_ensemble_size=min(args.nn_ensemble_size, 2),
+            nn_tune_ensemble_size=args.nn_tune_ensemble_size,
             nn_batch_size=args.nn_batch_size,
             nn_device=args.nn_device,
         )
@@ -65,6 +67,7 @@ def main():
             rf_n_estimators=args.rf_trees,
             nn_epochs=args.nn_epochs,
             nn_ensemble_size=args.nn_ensemble_size,
+            nn_tune_ensemble_size=args.nn_tune_ensemble_size,
             nn_batch_size=args.nn_batch_size,
             nn_device=args.nn_device,
         )

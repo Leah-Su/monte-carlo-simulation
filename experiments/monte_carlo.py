@@ -45,6 +45,7 @@ class ExperimentConfig:
     nn_epochs: int = 100
     nn_patience: int = 5
     nn_ensemble_size: int = 10
+    nn_tune_ensemble_size: int | None = None
     nn_device: str | None = None
 
 
@@ -222,6 +223,7 @@ def run_one_repetition(
             max_epochs=experiment.nn_epochs,
             patience=experiment.nn_patience,
             ensemble_size=experiment.nn_ensemble_size,
+            tune_ensemble_size=experiment.nn_tune_ensemble_size,
             base_seed=experiment.seed + 1000 * repetition,
             device=experiment.nn_device,
         )

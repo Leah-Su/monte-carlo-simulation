@@ -181,6 +181,7 @@ def tune_neural_network(
     max_epochs: int = 100,
     patience: int = 5,
     ensemble_size: int = 10,
+    tune_ensemble_size: int | None = None,
     base_seed: int = 0,
     device: str | None = None,
 ) -> tuple[NeuralNetEnsemble, dict]:
@@ -188,6 +189,7 @@ def tune_neural_network(
         raise ValueError(f"Unknown neural network model: {model_name}")
 
     device = validate_torch_device(device or default_torch_device())
+    tune_ensemble_size = tune_ensemble_size or ensemble_size
     scaler = StandardScaler()
     x_train_scaled = scaler.fit_transform(x_train).astype(np.float32)
     x_validation_scaled = scaler.transform(x_validation).astype(np.float32)
@@ -199,6 +201,7 @@ def tune_neural_network(
     y_validation_scaled = ((y_validation - y_mean) / y_std).astype(np.float32)
 
     best_model = None
+    best_params_object = None
     best_score = np.inf
     best_params = {}
 
@@ -211,7 +214,7 @@ def tune_neural_network(
             )
 
             models = []
-            for ensemble_idx in range(ensemble_size):
+            for ensemble_idx in range(tune_ensemble_size):
                 model = _fit_single_network(
                     x_train_scaled,
                     y_train_scaled,
@@ -238,11 +241,40 @@ def tune_neural_network(
             if score < best_score:
                 best_score = score
                 best_model = ensemble
+                best_params_object = params
                 best_params = {
                     "learning_rate": learning_rate,
                     "l1_penalty": l1_penalty,
                     "hidden_layers": NN_ARCHITECTURES[model_name],
                     "ensemble_size": ensemble_size,
+                    "tune_ensemble_size": tune_ensemble_size,
                 }
 
-    return best_model, best_params
+    if tune_ensemble_size == ensemble_size:
+        return best_model, best_params
+
+    final_models = []
+    for ensemble_idx in range(ensemble_size):
+        model = _fit_single_network(
+            x_train_scaled,
+            y_train_scaled,
+            x_validation_scaled,
+            y_validation_scaled,
+            params=best_params_object,
+            seed=base_seed + ensemble_idx,
+            batch_size=batch_size,
+            max_epochs=max_epochs,
+            patience=patience,
+            device=device,
+        )
+        final_models.append(model)
+
+    final_ensemble = NeuralNetEnsemble(
+        scaler=scaler,
+        models=final_models,
+        device=device,
+        y_mean=y_mean,
+        y_std=y_std,
+    )
+
+    return final_ensemble, best_params
