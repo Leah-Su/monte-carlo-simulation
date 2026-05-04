@@ -23,6 +23,7 @@ def parse_args():
     )
     parser.add_argument("--seed", default=123, type=int)
     parser.add_argument("--rf-trees", default=300, type=int)
+    parser.add_argument("--rf-tune-trees", default=None, type=int)
     parser.add_argument("--nn-epochs", default=100, type=int)
     parser.add_argument("--nn-ensemble-size", default=10, type=int)
     parser.add_argument("--nn-tune-ensemble-size", default=None, type=int)
@@ -48,6 +49,7 @@ def main():
             rf_depths=(1, 2),
             rf_max_features=(3, 10),
             rf_n_estimators=min(args.rf_trees, 50),
+            rf_tune_n_estimators=args.rf_tune_trees,
             nn_learning_rates=(0.001,),
             nn_l1_penalties=(1e-5,),
             nn_epochs=min(args.nn_epochs, 25),
@@ -65,6 +67,7 @@ def main():
             models=args.models,
             seed=args.seed,
             rf_n_estimators=args.rf_trees,
+            rf_tune_n_estimators=args.rf_tune_trees,
             nn_epochs=args.nn_epochs,
             nn_ensemble_size=args.nn_ensemble_size,
             nn_tune_ensemble_size=args.nn_tune_ensemble_size,

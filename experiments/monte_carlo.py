@@ -38,6 +38,7 @@ class ExperimentConfig:
     rf_depths: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
     rf_max_features: tuple[int, ...] = (3, 5, 10, 20, 30, 50, 100)
     rf_n_estimators: int = 300
+    rf_tune_n_estimators: int | None = None
 
     nn_learning_rates: tuple[float, ...] = (0.001, 0.01)
     nn_l1_penalties: tuple[float, ...] = tuple(np.logspace(-5, -3, 5))
@@ -188,6 +189,7 @@ def run_one_repetition(
             depths=list(experiment.rf_depths),
             max_features_grid=list(experiment.rf_max_features),
             n_estimators=experiment.rf_n_estimators,
+            tune_n_estimators=experiment.rf_tune_n_estimators,
             random_state=experiment.seed + repetition,
         )
         y_train_pred = model.predict(x_train)
