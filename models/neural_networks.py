@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from sklearn.preprocessing import StandardScaler
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.metrics import mean_squared_error
 
@@ -19,9 +18,20 @@ NN_ARCHITECTURES = {
 def default_torch_device() -> str:
     if torch.cuda.is_available():
         return "cuda"
-    if torch.backends.mps.is_available():
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def validate_torch_device(device: str) -> str:
+    if device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested, but torch.cuda.is_available() is False.")
+    if (
+        device == "mps"
+        and (getattr(torch.backends, "mps", None) is None or not torch.backends.mps.is_available())
+    ):
+        raise RuntimeError("MPS was requested, but torch.backends.mps.is_available() is False.")
+    return device
 
 
 @dataclass(frozen=True)
@@ -67,16 +77,15 @@ class NeuralNetEnsemble:
 
     def predict(self, x: np.ndarray, batch_size: int = 16384) -> np.ndarray:
         x_scaled = self.scaler.transform(x).astype(np.float32)
-        tensor = torch.from_numpy(x_scaled)
-        loader = DataLoader(TensorDataset(tensor), batch_size=batch_size, shuffle=False)
+        tensor = torch.from_numpy(x_scaled).to(self.device)
 
         predictions = []
         for model in self.models:
             model.eval()
             chunks = []
             with torch.no_grad():
-                for (batch_x,) in loader:
-                    batch_x = batch_x.to(self.device)
+                for start in range(0, tensor.shape[0], batch_size):
+                    batch_x = tensor[start : start + batch_size]
                     chunks.append(model(batch_x).cpu().numpy())
             predictions.append(np.concatenate(chunks))
 
@@ -105,31 +114,32 @@ def _fit_single_network(
     device: str,
 ) -> FeedForwardNet:
     torch.manual_seed(seed)
+    if device == "cuda":
+        torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
 
     model = FeedForwardNet(x_train.shape[1], params.hidden_layers).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=params.learning_rate)
     loss_fn = nn.MSELoss()
 
-    train_dataset = TensorDataset(
-        torch.from_numpy(x_train.astype(np.float32)),
-        torch.from_numpy(y_train.astype(np.float32)),
-    )
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
+    x_train_tensor = torch.from_numpy(x_train.astype(np.float32)).to(device)
+    y_train_tensor = torch.from_numpy(y_train.astype(np.float32)).to(device)
     x_val_tensor = torch.from_numpy(x_validation.astype(np.float32)).to(device)
     y_val_tensor = torch.from_numpy(y_validation.astype(np.float32)).to(device)
 
     best_state = None
     best_validation = np.inf
     stale_epochs = 0
+    n_train = x_train_tensor.shape[0]
 
     for _ in range(max_epochs):
         model.train()
-        for batch_x, batch_y in train_loader:
-            batch_x = batch_x.to(device)
-            batch_y = batch_y.to(device)
+        permutation = torch.randperm(n_train, device=device)
 
+        for start in range(0, n_train, batch_size):
+            batch_idx = permutation[start : start + batch_size]
+            batch_x = x_train_tensor[batch_idx]
+            batch_y = y_train_tensor[batch_idx]
             optimizer.zero_grad()
             prediction = model(batch_x)
             loss = loss_fn(prediction, batch_y) + params.l1_penalty * _l1_norm(model)
@@ -177,7 +187,7 @@ def tune_neural_network(
     if model_name not in NN_ARCHITECTURES:
         raise ValueError(f"Unknown neural network model: {model_name}")
 
-    device = device or default_torch_device()
+    device = validate_torch_device(device or default_torch_device())
     scaler = StandardScaler()
     x_train_scaled = scaler.fit_transform(x_train).astype(np.float32)
     x_validation_scaled = scaler.transform(x_validation).astype(np.float32)

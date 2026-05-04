@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -243,13 +244,48 @@ def run_one_repetition(
     return rows
 
 
-def run_monte_carlo(experiment: ExperimentConfig) -> pd.DataFrame:
-    rows = []
+def _completed_repetitions(results: pd.DataFrame, experiment: ExperimentConfig) -> set[tuple[str, int, int]]:
+    if results.empty:
+        return set()
+
+    required_models = set(experiment.models)
+    completed = set()
+    for (case, pc, repetition), group in results.groupby(["case", "pc", "repetition"]):
+        if required_models.issubset(set(group["model"])):
+            completed.add((case, int(pc), int(repetition)))
+    return completed
+
+
+def run_monte_carlo(
+    experiment: ExperimentConfig,
+    checkpoint_path: str | Path | None = None,
+    resume: bool = False,
+) -> pd.DataFrame:
+    checkpoint_path = Path(checkpoint_path) if checkpoint_path is not None else None
+
+    if resume and checkpoint_path is not None and checkpoint_path.exists():
+        existing = pd.read_csv(checkpoint_path)
+        rows = existing.to_dict("records")
+        completed = _completed_repetitions(existing, experiment)
+        print(f"Resuming from {checkpoint_path}; found {len(completed)} completed repetitions.")
+    else:
+        rows = []
+        completed = set()
+
     for case in experiment.cases:
         for pc in experiment.pc_values:
             for repetition in range(experiment.repetitions):
+                key = (case, pc, repetition)
+                if key in completed:
+                    print(f"Skipping case={case}, Pc={pc}, repetition={repetition + 1}/{experiment.repetitions}")
+                    continue
+
                 print(f"Running case={case}, Pc={pc}, repetition={repetition + 1}/{experiment.repetitions}")
                 rows.extend(run_one_repetition(case, pc, repetition, experiment))
+
+                if checkpoint_path is not None:
+                    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                    pd.DataFrame(rows).to_csv(checkpoint_path, index=False)
 
     return pd.DataFrame(rows)
 
