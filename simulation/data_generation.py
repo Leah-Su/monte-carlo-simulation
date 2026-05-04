@@ -121,6 +121,31 @@ def build_predictors(c: np.ndarray, x: np.ndarray) -> np.ndarray:
     return np.concatenate([c, c * x[:, None, None]], axis=2)
 
 
+def build_oracle_features(c: np.ndarray, x: np.ndarray, case: str) -> np.ndarray:
+    """
+    Diagnostic-only features that expose the true low-dimensional signal terms.
+    """
+    c1 = c[:, :, 0]
+    c2 = c[:, :, 1]
+    c3 = c[:, :, 2]
+    x_t = x[:, None]
+
+    if case == "a":
+        features = [c1, c2, c3 * x_t]
+    elif case == "b":
+        features = [c1**2, c1 * c2, np.sign(c3 * x_t)]
+    elif case == "c":
+        if c.shape[2] < 5:
+            raise ValueError("case='c' requires n_characteristics >= 5.")
+        c4 = c[:, :, 3]
+        c5 = c[:, :, 4]
+        features = [c1, c2, c3 * x_t, c1 * c4, c2 * c5, np.tanh(c3 * x_t)]
+    else:
+        raise ValueError("case must be one of {'a', 'b', 'c'}.")
+
+    return np.stack(features, axis=2)
+
+
 def calibrate_signal_to_predictive_r2(
     g: np.ndarray,
     factor_error: np.ndarray,
@@ -176,6 +201,8 @@ def generate_panel(config: SimulationConfig, case: str = "a") -> dict[str, np.nd
     c = generate_characteristics(config)
     x = generate_x(config)
     z = build_predictors(c, x)
+    if config.include_oracle_features:
+        z = np.concatenate([z, build_oracle_features(c, x, case)], axis=2)
     g = compute_g_star(c, x, case)
 
     v = rng.normal(
@@ -216,6 +243,7 @@ def generate_panel(config: SimulationConfig, case: str = "a") -> dict[str, np.nd
         "epsilon": epsilon,
         "signal_scale": np.array(signal_scale),
         "diagnostics": diagnostics,
+        "include_oracle_features": np.array(config.include_oracle_features),
     }
 
 

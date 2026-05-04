@@ -15,9 +15,9 @@ class SimulationConfig:
     epsilon_df: int = 5
     calibrate_dgp: bool = False
     target_predictive_r2: float = 0.05
+    include_oracle_features: bool = False
     seed: int = 123
 
     @property
     def n_features(self) -> int:
         return self.n_characteristics * self.n_x_terms
-

@@ -35,6 +35,7 @@ class ExperimentConfig:
     seed: int = 123
     calibrate_dgp: bool = False
     target_predictive_r2: float = 0.05
+    include_oracle_features: bool = False
 
     enet_alphas: tuple[float, ...] = tuple(np.logspace(-4, 0, 10))
     rf_depths: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
@@ -76,6 +77,7 @@ def run_one_repetition(
         n_characteristics=pc,
         calibrate_dgp=experiment.calibrate_dgp,
         target_predictive_r2=experiment.target_predictive_r2,
+        include_oracle_features=experiment.include_oracle_features,
         seed=experiment.seed + 10_000 * repetition + 100 * pc,
     )
     panel = generate_panel(simulation_config, case=case)
@@ -99,6 +101,7 @@ def run_one_repetition(
             "seconds": seconds,
             "calibrate_dgp": experiment.calibrate_dgp,
             "target_predictive_r2": experiment.target_predictive_r2,
+            "include_oracle_features": experiment.include_oracle_features,
             "signal_scale": signal_scale,
             "predictive_share": diagnostics.get("predictive_share", np.nan),
             "annualized_volatility": diagnostics.get("annualized_volatility", np.nan),
