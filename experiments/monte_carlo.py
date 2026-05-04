@@ -34,7 +34,7 @@ class ExperimentConfig:
     models: list[str]
     seed: int = 123
 
-    enet_alphas: tuple[float, ...] = tuple(np.logspace(-4, -1, 10))
+    enet_alphas: tuple[float, ...] = tuple(np.logspace(-4, 0, 10))
     rf_depths: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
     rf_max_features: tuple[int, ...] = (3, 5, 10, 20, 30, 50, 100)
     rf_n_estimators: int = 300

@@ -2,6 +2,8 @@ from pathlib import Path
 import argparse
 import sys
 
+import numpy as np
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -22,6 +24,9 @@ def parse_args():
         choices=["OLS-3", "OLS-3-H", "ENet", "ENet-H", "RF", "NN1", "NN2", "NN3"],
     )
     parser.add_argument("--seed", default=123, type=int)
+    parser.add_argument("--enet-alpha-min", default=1e-4, type=float)
+    parser.add_argument("--enet-alpha-max", default=1.0, type=float)
+    parser.add_argument("--enet-alpha-num", default=10, type=int)
     parser.add_argument("--rf-trees", default=300, type=int)
     parser.add_argument("--rf-tune-trees", default=None, type=int)
     parser.add_argument("--nn-epochs", default=100, type=int)
@@ -37,6 +42,11 @@ def parse_args():
 
 def main():
     args = parse_args()
+    enet_alphas = tuple(np.logspace(
+        np.log10(args.enet_alpha_min),
+        np.log10(args.enet_alpha_max),
+        args.enet_alpha_num,
+    ))
 
     if args.quick:
         experiment = ExperimentConfig(
@@ -66,6 +76,7 @@ def main():
             repetitions=args.repetitions,
             models=args.models,
             seed=args.seed,
+            enet_alphas=enet_alphas,
             rf_n_estimators=args.rf_trees,
             rf_tune_n_estimators=args.rf_tune_trees,
             nn_epochs=args.nn_epochs,
