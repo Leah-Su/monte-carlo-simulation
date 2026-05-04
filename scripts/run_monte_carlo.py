@@ -27,6 +27,8 @@ def parse_args():
     parser.add_argument("--enet-alpha-min", default=1e-4, type=float)
     parser.add_argument("--enet-alpha-max", default=1.0, type=float)
     parser.add_argument("--enet-alpha-num", default=10, type=int)
+    parser.add_argument("--calibrate-dgp", action="store_true")
+    parser.add_argument("--target-predictive-r2", default=0.05, type=float)
     parser.add_argument("--rf-trees", default=300, type=int)
     parser.add_argument("--rf-tune-trees", default=None, type=int)
     parser.add_argument("--nn-epochs", default=100, type=int)
@@ -55,6 +57,8 @@ def main():
             repetitions=args.repetitions,
             models=args.models,
             seed=args.seed,
+            calibrate_dgp=args.calibrate_dgp,
+            target_predictive_r2=args.target_predictive_r2,
             enet_alphas=(1e-4, 1e-3, 1e-2),
             rf_depths=(1, 2),
             rf_max_features=(3, 10),
@@ -76,6 +80,8 @@ def main():
             repetitions=args.repetitions,
             models=args.models,
             seed=args.seed,
+            calibrate_dgp=args.calibrate_dgp,
+            target_predictive_r2=args.target_predictive_r2,
             enet_alphas=enet_alphas,
             rf_n_estimators=args.rf_trees,
             rf_tune_n_estimators=args.rf_tune_trees,

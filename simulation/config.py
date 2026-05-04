@@ -13,10 +13,11 @@ class SimulationConfig:
     factor_vol: float = 0.05
     epsilon_vol: float = 0.05
     epsilon_df: int = 5
+    calibrate_dgp: bool = False
+    target_predictive_r2: float = 0.05
     seed: int = 123
 
     @property
     def n_features(self) -> int:
         return self.n_characteristics * self.n_x_terms
-
 

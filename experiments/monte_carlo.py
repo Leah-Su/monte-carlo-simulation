@@ -33,6 +33,8 @@ class ExperimentConfig:
     repetitions: int
     models: list[str]
     seed: int = 123
+    calibrate_dgp: bool = False
+    target_predictive_r2: float = 0.05
 
     enet_alphas: tuple[float, ...] = tuple(np.logspace(-4, 0, 10))
     rf_depths: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
@@ -72,6 +74,8 @@ def run_one_repetition(
         n_assets=200,
         n_periods=180,
         n_characteristics=pc,
+        calibrate_dgp=experiment.calibrate_dgp,
+        target_predictive_r2=experiment.target_predictive_r2,
         seed=experiment.seed + 10_000 * repetition + 100 * pc,
     )
     panel = generate_panel(simulation_config, case=case)
@@ -80,6 +84,25 @@ def run_one_repetition(
     x_train, y_train = flatten_for_sklearn(splits["train"])
     x_validation, y_validation = flatten_for_sklearn(splits["validation"])
     x_test, y_test = flatten_for_sklearn(splits["test"])
+    diagnostics = panel.get("diagnostics", {})
+    signal_scale = float(panel.get("signal_scale", np.array(1.0)))
+
+    def result_row(model_name: str, is_r2: float, oos_r2: float, best_params: str, seconds: float) -> dict:
+        return {
+            "case": case,
+            "pc": pc,
+            "repetition": repetition,
+            "model": model_name,
+            "is_r2": is_r2,
+            "oos_r2": oos_r2,
+            "best_params": best_params,
+            "seconds": seconds,
+            "calibrate_dgp": experiment.calibrate_dgp,
+            "target_predictive_r2": experiment.target_predictive_r2,
+            "signal_scale": signal_scale,
+            "predictive_share": diagnostics.get("predictive_share", np.nan),
+            "annualized_volatility": diagnostics.get("annualized_volatility", np.nan),
+        }
 
     rows = []
 
@@ -89,18 +112,7 @@ def run_one_repetition(
         y_train_pred = predict_ols3(model, splits["train"], case)
         y_test_pred = predict_ols3(model, splits["test"], case)
         is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
-        rows.append(
-            {
-                "case": case,
-                "pc": pc,
-                "repetition": repetition,
-                "model": "OLS-3",
-                "is_r2": is_r2,
-                "oos_r2": oos_r2,
-                "best_params": "{}",
-                "seconds": time.time() - started,
-            }
-        )
+        rows.append(result_row("OLS-3", is_r2, oos_r2, "{}", time.time() - started))
 
     if "OLS-3-H" in experiment.models:
         started = time.time()
@@ -113,16 +125,13 @@ def run_one_repetition(
         y_test_pred = predict_ols3_huber(model, splits["test"], case)
         is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
         rows.append(
-            {
-                "case": case,
-                "pc": pc,
-                "repetition": repetition,
-                "model": "OLS-3-H",
-                "is_r2": is_r2,
-                "oos_r2": oos_r2,
-                "best_params": "{'huber_quantile': 0.999}",
-                "seconds": time.time() - started,
-            }
+            result_row(
+                "OLS-3-H",
+                is_r2,
+                oos_r2,
+                "{'huber_quantile': 0.999}",
+                time.time() - started,
+            )
         )
 
     if "ENet" in experiment.models:
@@ -139,18 +148,7 @@ def run_one_repetition(
         y_train_pred = model.predict(x_train)
         y_test_pred = model.predict(x_test)
         is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
-        rows.append(
-            {
-                "case": case,
-                "pc": pc,
-                "repetition": repetition,
-                "model": "ENet",
-                "is_r2": is_r2,
-                "oos_r2": oos_r2,
-                "best_params": str(params),
-                "seconds": time.time() - started,
-            }
-        )
+        rows.append(result_row("ENet", is_r2, oos_r2, str(params), time.time() - started))
 
     if "ENet-H" in experiment.models:
         started = time.time()
@@ -166,18 +164,7 @@ def run_one_repetition(
         y_train_pred = model.predict(x_train)
         y_test_pred = model.predict(x_test)
         is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
-        rows.append(
-            {
-                "case": case,
-                "pc": pc,
-                "repetition": repetition,
-                "model": "ENet-H",
-                "is_r2": is_r2,
-                "oos_r2": oos_r2,
-                "best_params": str(params),
-                "seconds": time.time() - started,
-            }
-        )
+        rows.append(result_row("ENet-H", is_r2, oos_r2, str(params), time.time() - started))
 
     if "RF" in experiment.models:
         started = time.time()
@@ -195,18 +182,7 @@ def run_one_repetition(
         y_train_pred = model.predict(x_train)
         y_test_pred = model.predict(x_test)
         is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
-        rows.append(
-            {
-                "case": case,
-                "pc": pc,
-                "repetition": repetition,
-                "model": "RF",
-                "is_r2": is_r2,
-                "oos_r2": oos_r2,
-                "best_params": str(params),
-                "seconds": time.time() - started,
-            }
-        )
+        rows.append(result_row("RF", is_r2, oos_r2, str(params), time.time() - started))
 
     for model_name in ["NN1", "NN2", "NN3"]:
         if model_name not in experiment.models:
@@ -232,18 +208,7 @@ def run_one_repetition(
         y_train_pred = model.predict(x_train)
         y_test_pred = model.predict(x_test)
         is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
-        rows.append(
-            {
-                "case": case,
-                "pc": pc,
-                "repetition": repetition,
-                "model": model_name,
-                "is_r2": is_r2,
-                "oos_r2": oos_r2,
-                "best_params": str(params),
-                "seconds": time.time() - started,
-            }
-        )
+        rows.append(result_row(model_name, is_r2, oos_r2, str(params), time.time() - started))
 
     return rows
 

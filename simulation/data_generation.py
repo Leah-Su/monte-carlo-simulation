@@ -121,6 +121,50 @@ def build_predictors(c: np.ndarray, x: np.ndarray) -> np.ndarray:
     return np.concatenate([c, c * x[:, None, None]], axis=2)
 
 
+def calibrate_signal_to_predictive_r2(
+    g: np.ndarray,
+    factor_error: np.ndarray,
+    epsilon: np.ndarray,
+    target_predictive_r2: float,
+) -> tuple[np.ndarray, float]:
+    """
+    Rescale g so Var(g) / Var(g + error) approximately matches the target.
+
+    This keeps the factor and idiosyncratic error draws fixed and changes only
+    the signal strength. It is a practical finite-sample calibration for the
+    Appendix A statement that predictive R^2 is set around 5%.
+    """
+    if not 0.0 < target_predictive_r2 < 1.0:
+        raise ValueError("target_predictive_r2 must be between 0 and 1.")
+
+    signal_variance = float(np.var(g))
+    error_variance = float(np.var(factor_error + epsilon))
+
+    if signal_variance == 0.0:
+        return g, 1.0
+
+    scale = np.sqrt(
+        target_predictive_r2
+        * error_variance
+        / ((1.0 - target_predictive_r2) * signal_variance)
+    )
+    return scale * g, float(scale)
+
+
+def panel_diagnostics(g: np.ndarray, r: np.ndarray) -> dict[str, float]:
+    signal_variance = float(np.var(g))
+    return_variance = float(np.var(r))
+    predictive_share = signal_variance / return_variance if return_variance > 0 else np.nan
+    annualized_volatility = float(np.std(r) * np.sqrt(12.0))
+
+    return {
+        "signal_variance": signal_variance,
+        "return_variance": return_variance,
+        "predictive_share": predictive_share,
+        "annualized_volatility": annualized_volatility,
+    }
+
+
 def generate_panel(config: SimulationConfig, case: str = "a") -> dict[str, np.ndarray]:
     """
     Generate one Monte Carlo sample.
@@ -150,7 +194,17 @@ def generate_panel(config: SimulationConfig, case: str = "a") -> dict[str, np.nd
         size=(config.n_periods, config.n_assets),
     ) * epsilon_scale
 
+    signal_scale = 1.0
+    if config.calibrate_dgp:
+        g, signal_scale = calibrate_signal_to_predictive_r2(
+            g,
+            factor_error,
+            epsilon,
+            target_predictive_r2=config.target_predictive_r2,
+        )
+
     r = g + factor_error + epsilon
+    diagnostics = panel_diagnostics(g, r)
 
     return {
         "r": r,
@@ -160,6 +214,8 @@ def generate_panel(config: SimulationConfig, case: str = "a") -> dict[str, np.nd
         "x": x,
         "v": v,
         "epsilon": epsilon,
+        "signal_scale": np.array(signal_scale),
+        "diagnostics": diagnostics,
     }
 
 
@@ -194,4 +250,3 @@ def flatten_for_sklearn(sample: dict[str, np.ndarray]) -> tuple[np.ndarray, np.n
     z = sample["z"]
     r = sample["r"]
     return z.reshape(-1, z.shape[2]), r.reshape(-1)
-
