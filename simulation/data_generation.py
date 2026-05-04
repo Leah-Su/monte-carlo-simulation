@@ -233,7 +233,9 @@ def split_train_validation_test(panel: dict[str, np.ndarray]) -> dict[str, dict[
     output = {}
     for name, idx in slices.items():
         output[name] = {
-            key: value[idx] if value.shape[0] == total_periods else value
+            key: value[idx]
+            if isinstance(value, np.ndarray) and value.ndim > 0 and value.shape[0] == total_periods
+            else value
             for key, value in panel.items()
         }
 
