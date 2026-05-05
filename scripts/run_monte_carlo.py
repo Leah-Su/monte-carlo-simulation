@@ -21,7 +21,19 @@ def parse_args():
         "--models",
         nargs="+",
         default=["OLS-3", "ENet", "RF"],
-        choices=["OLS-3", "OLS-3-H", "ENet", "ENet-H", "RF", "NN1", "NN2", "NN3"],
+        choices=[
+            "OLS-3",
+            "OLS-3-H",
+            "ENet",
+            "ENet-H",
+            "RF",
+            "NN1",
+            "NN2",
+            "NN3",
+            "ENet-RIN1",
+            "ENet-RIN2",
+            "ENet-RIN3",
+        ],
     )
     parser.add_argument("--seed", default=123, type=int)
     parser.add_argument("--enet-alpha-min", default=1e-4, type=float)
@@ -115,7 +127,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if any(model.startswith("NN") for model in args.models):
+    if any(model.startswith("NN") or "RIN" in model for model in args.models):
         print(f"Using torch device for neural networks: {args.nn_device or default_torch_device()}")
 
     raw_path = output_dir / "monte_carlo_raw_results.csv"

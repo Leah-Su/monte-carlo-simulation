@@ -18,6 +18,7 @@ from models.linear_models import (
 )
 from models.neural_networks import tune_neural_network
 from models.random_forest import tune_random_forest
+from models.residual_models import tune_enet_residual_network
 from simulation.config import SimulationConfig
 from simulation.data_generation import (
     flatten_for_sklearn,
@@ -206,6 +207,34 @@ def run_one_repetition(
             ensemble_size=experiment.nn_ensemble_size,
             tune_ensemble_size=experiment.nn_tune_ensemble_size,
             base_seed=experiment.seed + 1000 * repetition,
+            device=experiment.nn_device,
+        )
+        y_train_pred = model.predict(x_train)
+        y_test_pred = model.predict(x_test)
+        is_r2, oos_r2 = _evaluate_predictions(y_train, y_test, y_train_pred, y_test_pred)
+        rows.append(result_row(model_name, is_r2, oos_r2, str(params), time.time() - started))
+
+    for model_name in ["ENet-RIN1", "ENet-RIN2", "ENet-RIN3"]:
+        if model_name not in experiment.models:
+            continue
+
+        started = time.time()
+        model, params = tune_enet_residual_network(
+            model_name,
+            x_train,
+            y_train,
+            x_validation,
+            y_validation,
+            enet_alphas=list(experiment.enet_alphas),
+            nn_learning_rates=list(experiment.nn_learning_rates),
+            nn_l1_penalties=list(experiment.nn_l1_penalties),
+            enet_l1_ratio=0.5,
+            nn_batch_size=experiment.nn_batch_size,
+            nn_epochs=experiment.nn_epochs,
+            nn_patience=experiment.nn_patience,
+            nn_ensemble_size=experiment.nn_ensemble_size,
+            nn_tune_ensemble_size=experiment.nn_tune_ensemble_size,
+            random_state=experiment.seed + 1000 * repetition,
             device=experiment.nn_device,
         )
         y_train_pred = model.predict(x_train)

@@ -184,6 +184,8 @@ def tune_neural_network(
     tune_ensemble_size: int | None = None,
     base_seed: int = 0,
     device: str | None = None,
+    validation_prediction_offset: np.ndarray | None = None,
+    validation_target_for_score: np.ndarray | None = None,
 ) -> tuple[NeuralNetEnsemble, dict]:
     if model_name not in NN_ARCHITECTURES:
         raise ValueError(f"Unknown neural network model: {model_name}")
@@ -236,7 +238,15 @@ def tune_neural_network(
                 y_mean=y_mean,
                 y_std=y_std,
             )
-            score = mean_squared_error(y_validation, ensemble.predict(x_validation))
+            validation_prediction = ensemble.predict(x_validation)
+            if validation_prediction_offset is not None:
+                validation_prediction = validation_prediction_offset + validation_prediction
+            validation_target = (
+                validation_target_for_score
+                if validation_target_for_score is not None
+                else y_validation
+            )
+            score = mean_squared_error(validation_target, validation_prediction)
 
             if score < best_score:
                 best_score = score
